@@ -2,6 +2,7 @@ use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
 };
+use log::info;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
@@ -45,7 +46,7 @@ impl Drop for ThreadPool {
         drop(self.sender.take());
 
         for worker in &mut self.workers {
-            println!("Shutting down worker {}", worker.id);
+            info!("Shutting down worker {}", worker.id);
 
             if let Some(thread) = worker.thread.take() {
                 thread.join().unwrap();
@@ -66,12 +67,12 @@ impl Worker {
 
             match message {
                 Ok(job) => {
-                    println!("Worker {id} got a job; executing.");
+                    info!("Worker {id} got a job; executing.");
 
                     job();
                 }
                 Err(_) => {
-                    println!("Worker {id} disconnected; shutting down.");
+                    info!("Worker {id} disconnected; shutting down.");
                     break;
                 }
             }

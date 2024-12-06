@@ -87,7 +87,7 @@ fn upload(file_path: &str) -> Result<(), Box<dyn Error>> {
 
     let response = send_command("UPLOAD", payload)?;
 
-    if response == "UPLOADED" {
+    if response == "SUCCESS" {
         println!("File '{}' uploaded successfully.", file_path);
     } else {
         println!("Failed to upload file '{}'.", file_path);

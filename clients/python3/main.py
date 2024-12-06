@@ -13,19 +13,19 @@ cli = click.Group()
 
 def send_command(command, payload=b""):
     with socket.create_connection(SERVER_ADDRESS) as sock:
-        sock.sendall(command.encode("utf-8") + payload)
+        sock.sendall(command.encode("utf-8"))
+        sock.sendall(payload)
 
         response = sock.recv(MAX_BUFFER_SIZE).decode("utf-8")
 
         status = response[:MAX_STATUS_SIZE]
 
+        print(f"Server response: {status}")
+
         if status == "*ERROR*":
             raise Exception("Server error, aborting")
 
-        print(f"Server response: {status}")
-
         return response
-
 
 def send_command_and_download_bytes(command, payload=b"") -> bytes:
     with socket.create_connection(SERVER_ADDRESS) as sock:
@@ -41,10 +41,11 @@ def send_command_and_download_bytes(command, payload=b"") -> bytes:
 
         status = response[:MAX_STATUS_SIZE]
 
+        print(f"Server response: {status}")
+
         if status == "*ERROR*":
             raise Exception("Server error, aborting")
 
-        print(f"Server response: {status}")
 
         return response
 
@@ -56,12 +57,10 @@ def upload(file_path):
         print("File does not exist.")
         return
 
-    file_size = os.path.getsize(file_path)
-
-    payload = struct.pack(">Q", file_size)
-
     with open(file_path, "rb") as f:
         file_content = f.read()
+
+    payload = struct.pack(">Q", len(file_content))
 
     payload += file_content
 
@@ -69,7 +68,7 @@ def upload(file_path):
 
     response = send_command("UPLOAD", payload)
 
-    if response == "UPLOADED":
+    if response == "SUCCESS":
         print(f"File '{file_path}' uploaded successfully.")
     else:
         print(f"Failed to upload file '{file_path}'.")

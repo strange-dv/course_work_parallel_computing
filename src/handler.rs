@@ -119,16 +119,16 @@ impl Handler {
         let mut file = File::create(&upload_path).map_err(|e| HandlerError::FileNotCreated(e))?;
 
         let buffer_size = std::cmp::min(file_size, BUFFER_SIZE);
-        let mut buffer = Vec::with_capacity(buffer_size);
+        let mut buffer = vec![0; buffer_size];
 
         let mut bytes_remaining = file_size;
 
         while bytes_remaining > 0 {
-            let bytes_to_read = std::cmp::min(buffer_size, bytes_remaining) as usize;
-
-            match stream.read(&mut buffer[..bytes_to_read]) {
+            match stream.read(&mut buffer) {
                 Ok(bytes_read) => {
-                    if bytes_read == 0 {}
+                    if bytes_read == 0 {
+                        break;
+                    }
 
                     file.write_all(&buffer[..bytes_read])
                         .map_err(|e| HandlerError::FailedToWriteFile(e))?;

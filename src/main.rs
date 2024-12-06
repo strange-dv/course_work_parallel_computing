@@ -1,3 +1,4 @@
+use course_work_parallel_computing::scheduler::Scheduler;
 use course_work_parallel_computing::{
     handler::Handler, inverted_index::InvertedIndex, threadpool::ThreadPool, UPLOADS_DIR,
 };
@@ -14,22 +15,25 @@ fn main() {
 
     info!("Server listening on 127.0.0.1:7878");
 
-    let cpu_count = num_cpus::get();
-    let thread_pool = ThreadPool::new(cpu_count);
-
     let inverted_index = Arc::new(Mutex::new(InvertedIndex::new()));
+
+    let cpu_count = num_cpus::get();
+
+    let handler_thread_pool = ThreadPool::new(cpu_count);
+
+    let scheduler = Arc::new(Mutex::new(Scheduler::new(Arc::clone(&inverted_index))));
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 info!("New connection established");
 
-                let mut handler = Handler::new(stream, Arc::clone(&inverted_index));
+                let mut handler = Handler::new(stream, Arc::clone(&inverted_index), Arc::clone(&scheduler));
 
-                thread_pool.execute(move || handler.handle_client());
+                handler_thread_pool.execute(move || handler.handle_client());
             }
             Err(e) => {
-                error!("Error accepting connection: {}", e);
+                error!("Error accepting connection: {e:#?}");
             }
         }
     }

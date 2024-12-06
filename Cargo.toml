@@ -9,4 +9,5 @@ log = "0.4.22"
 num_cpus = "1.16.0"
 regex = "1.11.1"
 serde_json = "1.0.132"
+thiserror = "2.0.4"
 uuid = { version = "1.11.0", features = ["v4"] }

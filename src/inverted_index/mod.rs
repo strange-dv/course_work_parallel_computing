@@ -20,7 +20,7 @@ pub struct InvertedIndex {
 
 impl InvertedIndex {
     pub fn new() -> Self {
-        if let Some(index) = Self::from_file() {
+        if let Some(index) = Self::load() {
             info!("State file found, loading index");
             return index;
         }
@@ -34,7 +34,7 @@ impl InvertedIndex {
         }
     }
 
-    fn from_file() -> Option<Self> {
+    fn load() -> Option<Self> {
         let raw_data = std::fs::read_to_string(STATE_FILE).ok()?;
 
         let raw_data: serde_json::Value =
@@ -80,7 +80,7 @@ impl InvertedIndex {
         })
     }
 
-    fn to_file(&self) {
+    fn save(&self) {
         let index = self.index.lock().unwrap();
 
         let documents = self.documents.lock().unwrap();
@@ -128,7 +128,7 @@ impl InvertedIndex {
         drop(documents);
         drop(index);
 
-        self.to_file();
+        self.save();
 
         info!("Document added {document_id} - {path}");
     }
@@ -138,21 +138,23 @@ impl InvertedIndex {
 
         let words = tokenize::tokenize(query);
 
-        words
+        let result = words
             .iter()
             .flat_map(|word| index.get(word))
             .flatten()
             .cloned()
-            .collect()
+            .collect();
+
+        info!("Search results: {result:#?}");
+
+        result
     }
 
-    pub fn delete_document(&self, document_id: u64) {
+    pub fn delete_document(&self, document_id: u64) -> std::io::Result<()> {
         let mut documents = self.documents.lock().unwrap();
 
         if let Some(path) = documents.remove(&document_id) {
-            if let Err(e) = std::fs::remove_file(&path) {
-                error!("Failed to delete document: {e}");
-            }
+            std::fs::remove_file(&path)?;
         }
 
         let mut index = self.index.lock().unwrap();
@@ -164,12 +166,18 @@ impl InvertedIndex {
         drop(documents);
         drop(index);
 
-        self.to_file();
+        self.save();
+
+        info!("Document deleted: {document_id}");
+
+        Ok(())
     }
 
+    pub fn document_exists(&self, document_id: u64) -> bool {
+        self.documents.lock().unwrap().contains_key(&document_id)
+    }
+    
     pub fn get_document_path(&self, document_id: u64) -> Option<String> {
-        let documents = self.documents.lock().unwrap();
-
-        documents.get(&document_id).cloned()
+        self.documents.lock().unwrap().get(&document_id).cloned()
     }
 }

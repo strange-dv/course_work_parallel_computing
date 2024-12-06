@@ -4,19 +4,47 @@ import os
 import click
 
 SERVER_ADDRESS = ("127.0.0.1", 7878)
+MAX_BUFFER_SIZE = 8192
+MAX_STATUS_SIZE = 7
 
 
 cli = click.Group()
 
 
 def send_command(command, payload=b""):
-
     with socket.create_connection(SERVER_ADDRESS) as sock:
         sock.sendall(command.encode("utf-8") + payload)
 
-        response = sock.recv(1024).decode("utf-8")
+        response = sock.recv(MAX_BUFFER_SIZE).decode("utf-8")
 
-        print(f"Server response: {response}")
+        status = response[:MAX_STATUS_SIZE]
+
+        if status == "*ERROR*":
+            raise Exception("Server error, aborting")
+
+        print(f"Server response: {status}")
+
+        return response
+
+
+def send_command_and_download_bytes(command, payload=b"") -> bytes:
+    with socket.create_connection(SERVER_ADDRESS) as sock:
+        sock.sendall(command.encode("utf-8") + payload)
+
+        response = bytes()
+
+        while True:
+            data = sock.recv(MAX_BUFFER_SIZE)
+            if not data:
+                break
+            response += data
+
+        status = response[:MAX_STATUS_SIZE]
+
+        if status == "*ERROR*":
+            raise Exception("Server error, aborting")
+
+        print(f"Server response: {status}")
 
         return response
 
@@ -58,19 +86,17 @@ def search(term):
 
     response = send_command("SEARCH", payload)
 
-    if "FOUND" not in response:
+    if "SUCCESS" not in response:
         print(f"Term '{term}' not found")
         return
 
-    response = response[5:]
+    response = response[MAX_STATUS_SIZE:]
 
     if response == "":
         print(f"No documents found containing '{term}'")
         return
 
-    documents = list(map(lambda x: int(x), response.split(",")))
-
-    print(f"Documents IDs containing '{term}': {documents}")
+    print(f"Documents IDs containing '{term}': {response}")
 
 
 @cli.command()
@@ -90,11 +116,33 @@ def delete(document_id):
         print(f"Document '{document_id}' not found or could not be deleted.")
 
 
+@cli.command()
+@click.option(
+    "--document-id",
+    type=int,
+    required=True,
+    help="ID of the document to download",
+)
+def download(document_id):
+    print(f"Downloading document ID: {document_id}")
+    payload = struct.pack(">Q", document_id)
+
+    response = send_command_and_download_bytes("IMPORT", payload)
+
+    if b"SUCCESS" not in response:
+        print(f"Document '{document_id}' not found.")
+        return
+
+    response = response[MAX_STATUS_SIZE:]
+    if len(response) == 0:
+        print(f"Document '{document_id}' could not be downloaded.")
+        return
+
+    with open(f"document_{document_id}.txt", "wb") as f:
+        f.write(response)
+
+    print(f"Document '{document_id}' downloaded successfully.")
+
+
 if __name__ == "__main__":
     cli()
-
-    upload("~/kpi/year4/parallel_computing/aclImdb/test/neg/0_2.txt")
-
-    search("response")
-
-    delete(0)

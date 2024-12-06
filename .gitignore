@@ -2,3 +2,4 @@
 .venv/
 uploads/
 index.json
+/clients/rust/target

@@ -103,14 +103,14 @@ fn search(term: &str) -> Result<(), Box<dyn Error>> {
 
     println!("Searching for term: {}", term);
 
-    let response = send_command("SEARCH", payload)?;
+    let response = send_command_and_download_bytes("SEARCH", payload)?;
 
-    if !response.contains("SUCCESS") {
+    if &response[..MAX_STATUS_SIZE] != "SUCCESS".as_bytes() {
         println!("Term '{}' not found", term);
         return Ok(());
     }
 
-    let documents = &response[MAX_STATUS_SIZE..];
+    let documents = String::from_utf8_lossy(&response[MAX_STATUS_SIZE..]);
     if documents.is_empty() {
         println!("No documents found containing '{}'", term);
         return Ok(());
@@ -173,6 +173,20 @@ fn download(document_id: u64) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn status() -> Result<(), Box<dyn Error>> {
+    println!("Requesting server status.");
+    let response = send_command_and_download_bytes("STATUS", Vec::new())?;
+
+    if !response.starts_with(b"SUCCESS") {
+        println!("Server is not available.");
+        return Ok(());
+    }
+
+    let document_count = u64::from_be_bytes(response[MAX_STATUS_SIZE..].try_into()?);
+    println!("Server is ready. Document count: {document_count}");
+    Ok(())
+}
+
 #[derive(Parser, Debug)]
 struct Cli {
     #[command(subcommand)]
@@ -197,6 +211,7 @@ enum Commands {
         #[arg(short, long, help = "ID of the document to download")]
         document_id: u64,
     },
+    Status,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -207,6 +222,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Commands::Search { term } => search(&term)?,
         Commands::Delete { document_id } => delete(document_id)?,
         Commands::Download { document_id } => download(document_id)?,
+        Commands::Status => status()?,
     }
 
     Ok(())

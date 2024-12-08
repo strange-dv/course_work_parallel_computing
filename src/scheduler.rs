@@ -1,6 +1,7 @@
 use crate::inverted_index::InvertedIndex;
 use crate::threadpool::ThreadPool;
-use std::sync::{Arc, Mutex};
+use log::debug;
+use std::sync::Arc;
 
 pub enum Task {
     AddDocument(String),
@@ -8,14 +9,13 @@ pub enum Task {
 }
 
 pub struct Scheduler {
-    inverted_index: Arc<Mutex<InvertedIndex>>,
+    inverted_index: Arc<InvertedIndex>,
     thread_pool: ThreadPool,
 }
 
 impl Scheduler {
-    pub fn new(inverted_index: Arc<Mutex<InvertedIndex>>) -> Self {
-        let cpu_count = num_cpus::get();
-        let thread_pool = ThreadPool::new(cpu_count);
+    pub fn new(num_threads: usize, inverted_index: Arc<InvertedIndex>) -> Self {
+        let thread_pool = ThreadPool::new(num_threads);
 
         Scheduler {
             inverted_index,
@@ -24,17 +24,22 @@ impl Scheduler {
     }
     pub fn run(&self, task: Task) {
         let inverted_index = Arc::clone(&self.inverted_index);
-        self.thread_pool.execute(move || match task {
-            Task::AddDocument(document) => {
-                let index = inverted_index.lock().unwrap();
-                index.add_document(document);
-            }
-            Task::DeleteDocument(document_id) => {
-                let index = inverted_index.lock().unwrap();
-                if let Err(e) = index.delete_document(document_id) {
-                    log::error!("Failed to delete document: {e}");
+        self.thread_pool.execute(move || {
+            let start = std::time::Instant::now();
+
+            match task {
+                Task::AddDocument(document) => {
+                    inverted_index.add_document(document.clone());
+                }
+                Task::DeleteDocument(document_id) => {
+                    if let Err(e) = inverted_index.delete_document(document_id) {
+                        log::error!("Failed to delete document: {e}");
+                    }
                 }
             }
+
+            let elapsed = start.elapsed();
+            debug!("Job executed in {elapsed:?}");
         });
     }
 }

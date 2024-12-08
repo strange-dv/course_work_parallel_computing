@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::str;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use thiserror::Error;
 
 const BUFFER_SIZE: usize = 8192;
@@ -15,6 +15,7 @@ enum Command {
     Search,
     Delete,
     Import,
+    Status,
     Unknown(Vec<u8>),
 }
 
@@ -52,15 +53,15 @@ type HandlerResult<T> = std::result::Result<T, HandlerError>;
 
 pub struct Handler {
     stream: TcpStream,
-    inverted_index: Arc<Mutex<InvertedIndex>>,
-    scheduler: Arc<Mutex<Scheduler>>,
+    inverted_index: Arc<InvertedIndex>,
+    scheduler: Arc<Scheduler>,
 }
 
 impl Handler {
     pub fn new(
         stream: TcpStream,
-        inverted_index: Arc<Mutex<InvertedIndex>>,
-        scheduler: Arc<Mutex<Scheduler>>,
+        inverted_index: Arc<InvertedIndex>,
+        scheduler: Arc<Scheduler>,
     ) -> Handler {
         Handler {
             stream,
@@ -83,6 +84,7 @@ impl Handler {
             b"SEARCH" => Command::Search,
             b"DELETE" => Command::Delete,
             b"IMPORT" => Command::Import,
+            b"STATUS" => Command::Status,
             _ => Command::Unknown(buffer.to_vec()),
         };
 
@@ -91,6 +93,7 @@ impl Handler {
             Command::Search => self.handle_search(),
             Command::Delete => self.handle_delete(),
             Command::Import => self.handle_download(),
+            Command::Status => self.handle_status(),
             Command::Unknown(command) => {
                 error!("Unknown command received: {command:?}");
                 return;
@@ -143,7 +146,7 @@ impl Handler {
 
         let task = Task::AddDocument(upload_path.clone());
 
-        self.scheduler.lock().unwrap().run(task);
+        self.scheduler.run(task);
 
         self.write_response(b"SUCCESS")?;
 
@@ -172,8 +175,6 @@ impl Handler {
 
         let document_ids = self
             .inverted_index
-            .lock()
-            .unwrap()
             .search(search_term)
             .iter()
             .map(|id| id.to_string())
@@ -185,7 +186,7 @@ impl Handler {
         response.extend_from_slice(&document_ids.as_bytes());
 
         self.write_response(&response)?;
-               
+
         info!("Search complete.");
 
         Ok(())
@@ -198,18 +199,13 @@ impl Handler {
 
         info!("Deleting document with ID: {document_id}");
 
-        if !self
-            .inverted_index
-            .lock()
-            .unwrap()
-            .document_exists(document_id as u64)
-        {
+        if !self.inverted_index.document_exists(document_id as u64) {
             return self.write_response(b"MISSING");
         }
 
         let task = Task::DeleteDocument(document_id as u64);
 
-        self.scheduler.lock().unwrap().run(task);
+        self.scheduler.run(task);
 
         self.write_response(b"DELETED")?;
 
@@ -225,12 +221,7 @@ impl Handler {
 
         info!("Downloading document with ID: {document_id}");
 
-        let document_path = match self
-            .inverted_index
-            .lock()
-            .unwrap()
-            .get_document_path(document_id as u64)
-        {
+        let document_path = match self.inverted_index.get_document_path(document_id as u64) {
             Some(path) => path,
             None => {
                 error!("Requested document not found");
@@ -257,6 +248,15 @@ impl Handler {
 
             self.write_response(&buffer)?;
         }
+        Ok(())
+    }
+
+    fn handle_status(&self) -> HandlerResult<()> {
+        let documents = self.inverted_index.get_document_count();
+
+        self.write_response(b"SUCCESS")?;
+        self.write_response(&documents.to_be_bytes())?;
+
         Ok(())
     }
 

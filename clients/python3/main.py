@@ -1,72 +1,25 @@
-import socket
 import struct
 import os
 import click
-
-SERVER_ADDRESS = ("127.0.0.1", 7878)
-MAX_BUFFER_SIZE = 8192
-MAX_STATUS_SIZE = 7
+from load_testing import LoadTester
+from send import (
+    get_document_count,
+    send_command,
+    send_command_and_download_bytes,
+    upload_file,
+    MAX_STATUS_SIZE,
+)
 
 
 cli = click.Group()
 
 
-def send_command(command, payload=b""):
-    with socket.create_connection(SERVER_ADDRESS) as sock:
-        sock.sendall(command.encode("utf-8"))
-        sock.sendall(payload)
-
-        response = sock.recv(MAX_BUFFER_SIZE).decode("utf-8")
-
-        status = response[:MAX_STATUS_SIZE]
-
-        print(f"Server response: {status}")
-
-        if status == "*ERROR*":
-            raise Exception("Server error, aborting")
-
-        return response
-
-def send_command_and_download_bytes(command, payload=b"") -> bytes:
-    with socket.create_connection(SERVER_ADDRESS) as sock:
-        sock.sendall(command.encode("utf-8") + payload)
-
-        response = bytes()
-
-        while True:
-            data = sock.recv(MAX_BUFFER_SIZE)
-            if not data:
-                break
-            response += data
-
-        status = response[:MAX_STATUS_SIZE]
-
-        print(f"Server response: {status}")
-
-        if status == "*ERROR*":
-            raise Exception("Server error, aborting")
-
-
-        return response
-
-
 @cli.command()
 @click.option("--file-path", type=str, required=True, help="Path to the file to upload")
 def upload(file_path):
-    if not os.path.isfile(file_path):
-        print("File does not exist.")
-        return
-
-    with open(file_path, "rb") as f:
-        file_content = f.read()
-
-    payload = struct.pack(">Q", len(file_content))
-
-    payload += file_content
-
     print(f"Uploading file: {file_path}")
 
-    response = send_command("UPLOAD", payload)
+    response = upload_file(file_path)
 
     if response == "SUCCESS":
         print(f"File '{file_path}' uploaded successfully.")
@@ -83,13 +36,13 @@ def search(term):
 
     print(f"Searching for term: {term}")
 
-    response = send_command("SEARCH", payload)
+    response = send_command_and_download_bytes("SEARCH", payload)
 
-    if "SUCCESS" not in response:
+    if b"SUCCESS" != response[:MAX_STATUS_SIZE]:
         print(f"Term '{term}' not found")
         return
 
-    response = response[MAX_STATUS_SIZE:]
+    response = response[MAX_STATUS_SIZE:].decode("utf-8")
 
     if response == "":
         print(f"No documents found containing '{term}'")
@@ -141,6 +94,31 @@ def download(document_id):
         f.write(response)
 
     print(f"Document '{document_id}' downloaded successfully.")
+
+
+@cli.command()
+@click.option(
+    "--num-threads",
+    type=int,
+    required=True,
+    help="Number of threads to use for load testing",
+)
+def load(num_threads: int):
+    print("Performing load testing")
+
+    data_dir = "/home/andrii/kpi/year4/parallel_computing/cw_dataset/"
+
+    load_tester = LoadTester(num_threads, data_dir)
+
+    load_tester.start_testing()
+
+    print("Load testing completed")
+
+
+@cli.command()
+def status():
+    documents_count = get_document_count()
+    print(f"Server is ready. Document count: {documents_count}")
 
 
 if __name__ == "__main__":

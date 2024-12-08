@@ -1,7 +1,7 @@
 use regex::Regex;
 
 pub fn tokenize(text: &str) -> Vec<String> {
-    let re = Regex::new(r"\w+|\p{P}+").unwrap();
+    let re = Regex::new(r"[\w'-]+|[[:punct:]]+").unwrap();
     re.find_iter(text)
         .map(|mat| mat.as_str().to_string())
         .collect()
@@ -36,7 +36,7 @@ mod tests {
     fn test_with_only_punctuation() {
         let text = "?!.,";
         let tokens = tokenize(text);
-        assert_eq!(tokens, vec!["?", "!", ".", ","]);
+        assert_eq!(tokens, vec!["?!.,"]);
     }
 
     #[test]
@@ -63,6 +63,21 @@ mod tests {
         assert_eq!(
             tokens,
             vec!["Hello", "@", "world", ",", "how's", "#", "Rust", "?"]
+        );
+    }
+
+    #[test]
+    fn test_very_special_title() {
+        let text = "=====================  Product Identification  =====================";
+        let tokens = tokenize(text);
+        assert_eq!(
+            tokens,
+            vec![
+                "=====================",
+                "Product",
+                "Identification",
+                "====================="
+            ]
         );
     }
 }

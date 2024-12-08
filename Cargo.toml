@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ctrlc = "3.4.5"
 env_logger = "*"
 log = "0.4.22"
 num_cpus = "1.16.0"

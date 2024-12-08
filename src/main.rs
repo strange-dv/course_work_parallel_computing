@@ -5,7 +5,10 @@ use course_work_parallel_computing::{
 use env_logger;
 use log::{error, info};
 use std::net::TcpListener;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+const HANDLER_THREAD_POOL_SIZE: usize = 10;
+const SCHEDULER_THREAD_POOL_SIZE: usize = 20;
 
 fn main() {
     env_logger::init();
@@ -15,20 +18,28 @@ fn main() {
 
     info!("Server listening on 127.0.0.1:7878");
 
-    let inverted_index = Arc::new(Mutex::new(InvertedIndex::new()));
+    let inverted_index = Arc::new(InvertedIndex::new());
 
-    let cpu_count = num_cpus::get();
+    let inverted_index_save_handle = Arc::clone(&inverted_index);
+    ctrlc::set_handler(move || {
+        inverted_index_save_handle.save();
+        std::process::exit(0);
+    }).expect("Failed to set Ctrl-C handler");
 
-    let handler_thread_pool = ThreadPool::new(cpu_count);
+    let handler_thread_pool = ThreadPool::new(HANDLER_THREAD_POOL_SIZE);
 
-    let scheduler = Arc::new(Mutex::new(Scheduler::new(Arc::clone(&inverted_index))));
+    let scheduler = Arc::new(Scheduler::new(
+        SCHEDULER_THREAD_POOL_SIZE,
+        Arc::clone(&inverted_index),
+    ));
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 info!("New connection established");
 
-                let mut handler = Handler::new(stream, Arc::clone(&inverted_index), Arc::clone(&scheduler));
+                let mut handler =
+                    Handler::new(stream, Arc::clone(&inverted_index), Arc::clone(&scheduler));
 
                 handler_thread_pool.execute(move || handler.handle_client());
             }

@@ -103,10 +103,14 @@ def download(document_id):
     required=True,
     help="Number of threads to use for load testing",
 )
-def load(num_threads: int):
+@click.option(
+    "--data-dir",
+    type=str,
+    required=True,
+    help="Directory containing the data files",
+)
+def load(num_threads: int, data_dir: str):
     print("Performing load testing")
-
-    data_dir = "/home/andrii/kpi/year4/parallel_computing/cw_dataset/"
 
     load_tester = LoadTester(num_threads, data_dir)
 

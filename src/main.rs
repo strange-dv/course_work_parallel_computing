@@ -8,7 +8,7 @@ use std::net::TcpListener;
 use std::sync::Arc;
 
 const HANDLER_THREAD_POOL_SIZE: usize = 10;
-const SCHEDULER_THREAD_POOL_SIZE: usize = 20;
+const SCHEDULER_THREAD_POOL_SIZE: usize = 10000;
 
 fn main() {
     env_logger::init();

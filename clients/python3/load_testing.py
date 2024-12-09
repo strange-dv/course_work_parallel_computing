@@ -29,7 +29,7 @@ class LoadTester:
             threads.append(thread)
 
         end = time.time()
-        print(f"Threads:\t\t{end - start} seconds")
+        print(f"Створення потоків\t\t{end - start} секунд")
         start = end
 
         for thread in threads:
@@ -39,7 +39,7 @@ class LoadTester:
             thread.join()
 
         end = time.time()
-        print(f"Upload:\t\t\t{end - start} seconds")
+        print(f"Завантаження документів:\t{end - start} секунд")
 
         desired_document_count = initial_document_count + len(self.files)
 
@@ -47,7 +47,7 @@ class LoadTester:
             pass
 
         end = time.time()
-        print(f"Index updates:\t\t{end - start} seconds")
+        print(f"Оновлення індекса:\t\t{end - start} секунд")
 
     def load_data(self, data_dir):
         self.files = [

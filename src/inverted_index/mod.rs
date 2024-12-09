@@ -3,7 +3,7 @@ mod tests;
 mod tokenize;
 
 use super::STATE_FILE;
-use log::{error, info, warn};
+use log::{error, info};
 use std::collections::HashSet;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::atomic::AtomicU64;
@@ -26,7 +26,7 @@ impl InvertedIndex {
             return index;
         }
 
-        warn!("State file not found, creating new index");
+        info!("State file not found, creating new index");
 
         InvertedIndex {
             index: Arc::new(RwLock::new(HashMap::new())),

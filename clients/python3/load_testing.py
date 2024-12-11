@@ -3,15 +3,15 @@ import time
 import threading
 from send import get_document_count, upload_file
 
-MAX_DATASET_SIZE = 10000
-
 
 class LoadTester:
     num_threads: int
+    max_dataset_size: int
     files: list
 
-    def __init__(self, num_threads: int, data_dir: str):
+    def __init__(self, num_threads: int, data_dir: str, max_dataset_size: int):
         self.num_threads = num_threads
+        self.max_dataset_size = max_dataset_size
         self.load_data(data_dir)
         print("Files loaded:", len(self.files))
 
@@ -52,7 +52,7 @@ class LoadTester:
     def load_data(self, data_dir):
         self.files = [
             os.path.abspath(os.path.join(data_dir, f))
-            for f in os.listdir(data_dir)[:MAX_DATASET_SIZE]
+            for f in os.listdir(data_dir)[:self.max_dataset_size]
         ]
 
     def upload_chunk(self, chunk):

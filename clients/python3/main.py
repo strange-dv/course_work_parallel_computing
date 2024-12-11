@@ -109,10 +109,16 @@ def download(document_id):
     required=True,
     help="Directory containing the data files",
 )
-def load(num_threads: int, data_dir: str):
+@click.option(
+    "--max-dataset-size",
+    type=int,
+    default=1000,
+    help="Maximum number of files to upload",
+)
+def load(num_threads: int, data_dir: str, max_dataset_size: int):
     print("Performing load testing")
 
-    load_tester = LoadTester(num_threads, data_dir)
+    load_tester = LoadTester(num_threads, data_dir, max_dataset_size)
 
     load_tester.start_testing()
 

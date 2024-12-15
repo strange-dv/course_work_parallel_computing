@@ -1,12 +1,11 @@
 use log::info;
-use std::{
-    sync::{mpsc, Arc, Mutex},
-    thread,
-};
+use std::{sync::Arc, thread};
+
+use crate::channel::Channel;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: Option<mpsc::Sender<Job>>,
+    channel: Option<Arc<Channel<Job>>>, // sender: Option<mpsc::Sender<Job>>,
 }
 
 type Job = Box<dyn FnOnce() + Send + Sync + 'static>;
@@ -15,19 +14,17 @@ impl ThreadPool {
     pub fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
 
-        let (sender, receiver) = mpsc::channel();
-
-        let receiver = Arc::new(Mutex::new(receiver));
+        let channel = Arc::new(Channel::new());
 
         let mut workers = Vec::with_capacity(size);
 
         for id in 0..size {
-            workers.push(Worker::new(id, Arc::clone(&receiver)));
+            workers.push(Worker::new(id, Arc::clone(&channel)));
         }
 
         ThreadPool {
             workers,
-            sender: Some(sender),
+            channel: Some(channel),
         }
     }
 
@@ -37,13 +34,13 @@ impl ThreadPool {
     {
         let job = Box::new(f);
 
-        self.sender.as_ref().unwrap().send(job).unwrap();
+        self.channel.as_ref().unwrap().send(job);
     }
 }
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        drop(self.sender.take());
+        drop(self.channel.take());
 
         for worker in &mut self.workers {
             info!("Shutting down worker {}", worker.id);
@@ -61,17 +58,17 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+    fn new(id: usize, receiver: Arc<Channel<Job>>) -> Worker {
         let thread = thread::spawn(move || loop {
-            let message = receiver.lock().unwrap().recv();
+            let message = receiver.receive();
 
             match message {
-                Ok(job) => {
+                Some(job) => {
                     info!("Worker {id} got a job; executing.");
 
                     job();
                 }
-                Err(_) => {
+                None => {
                     info!("Worker {id} disconnected; shutting down.");
                     break;
                 }

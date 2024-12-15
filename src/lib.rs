@@ -1,3 +1,4 @@
+pub mod channel;
 pub mod handler;
 pub mod inverted_index;
 pub mod scheduler;
